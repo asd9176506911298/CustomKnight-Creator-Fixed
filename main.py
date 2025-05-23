@@ -152,6 +152,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.updatePreview(path)
 
     def packSprites(self, checked):
+        spriteHandler.outputLog = self.infoBox
         if path.isdir(self.lineEdit.text()) and self.lineEdit.text() != "":
             spriteHandler.loadDuplicates("")
             completion = True
