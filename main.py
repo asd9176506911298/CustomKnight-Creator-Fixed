@@ -26,7 +26,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         fname = QFileDialog.getExistingDirectory(
             self,
             'Select a base level animations folder (e.g. "Knight")',
-            "c:\\",
+            os.getcwd(),
             QFileDialog.Option.ShowDirsOnly,
         )
         fname += "/0.Atlases/SpriteInfo.json"
@@ -171,7 +171,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                     defaultButton=QMessageBox.StandardButton.No,
                 )
-                print(button)
+                # print(button)
                 if button == QMessageBox.StandardButton.No:
                     self.infoBox.appendPlainText("Packing cancelled.")
                     self.infoBox.repaint()
@@ -202,7 +202,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         dirname = QFileDialog.getExistingDirectory(
             self,
             "Select a folder to output packed sprites into",
-            "c:\\",
+            os.getcwd(),
             QFileDialog.Option.ShowDirsOnly,
         )
         self.lineEdit.setText(dirname)
@@ -345,6 +345,8 @@ class WizardDialog(QDialog, Ui_Dialog):
             spriteHandler.copyMain(str(self.listWidget.currentItem().text()))
             self.updateCompletion()
             window.infoBox.appendPlainText("Duplicates replaced with selected sprite.")
+    
+    
 
     def autoreplaceAll(self, check):
         if self.duplicatesWidget.count() != 0:
@@ -352,14 +354,14 @@ class WizardDialog(QDialog, Ui_Dialog):
                 self.duplicatesWidget.item(x).text()
                 for x in range(self.duplicatesWidget.count())
             ]:
-                print(item)
+                # print(item)
                 timeSort = sorted(
-                    [
-                        spriteHandler.basepath + "/" + x
-                        for x in spriteHandler.duplicatesList[
-                            spriteHandler.duplicatesHashList.index(item)
+                    filter(path.isfile,
+                        [
+                            spriteHandler.basepath + "/" + x
+                            for x in spriteHandler.duplicatesList[spriteHandler.duplicatesHashList.index(item)]
                         ]
-                    ],
+                    ),
                     key=path.getmtime,
                     reverse=True,
                 )
@@ -367,6 +369,7 @@ class WizardDialog(QDialog, Ui_Dialog):
                 i = spriteHandler.spritePath.index(
                     [x for x in spriteHandler.spritePath if x in file][0]
                 )
+                # This is okay because the above list is filtered to only include existing files
                 im = Image.open(file)
                 im = im.crop(
                     (
@@ -380,7 +383,7 @@ class WizardDialog(QDialog, Ui_Dialog):
                 )
                 imData = im.getdata()
                 newHash = hash(tuple(map(tuple, imData)))
-                print(file)
+                # print(file)
                 if newHash != item:
                     spriteHandler.copyMain(spriteHandler.spritePath[i])
         self.updateCompletion()

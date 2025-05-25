@@ -30,6 +30,7 @@ class spriteHandler:
 
     duplicatesHashList = []
     duplicatesList = []
+    duplicatesCache = {}
     
     outputLog = None
 
@@ -39,6 +40,7 @@ class spriteHandler:
     def loadSpriteInfo(files):
         categories = []
         spriteHandler.spriteAtlases = {}
+        spriteHandler.duplicatesCache = {}
         spriteHandler.dataArray = []
         for file in files:
             io = open(file, "r")
@@ -52,11 +54,25 @@ class spriteHandler:
             ]
             categories += spriteCollectionList
             
+            # Get Base Atlases
             atlas_path = os.path.dirname(file)
             atlas_files = os.listdir(atlas_path)
             for collection in spriteCollectionList:
                 if (collection + ".png") in atlas_files:
                     spriteHandler.spriteAtlases[collection] = atlas_path + "/" + collection + ".png"
+            
+            # Cache Duplicate List
+            # TODO make sure lengths match and keys exist, may crash if keys don't exist
+            for i in range(min(len(data["scollectionname"]), len(data["sx"]), len(data["sy"]), len(data["swidth"]), len(data["sheight"]), len(data["spath"]))):
+                key_items = [
+                    str(data["scollectionname"][i]),
+                    "(", str(data["sx"][i]), ",", str(data["sy"][i]), ")",
+                    str(data["swidth"][i]), "x", str(data["sheight"][i])
+                ]
+                sprite_key = " ".join(key_items)
+                if not (sprite_key in spriteHandler.duplicatesCache):
+                    spriteHandler.duplicatesCache[sprite_key] = []
+                spriteHandler.duplicatesCache[sprite_key].append(data["spath"][i])
         
         finalCategories = []
         [finalCategories.append(x) for x in categories if x not in finalCategories]
@@ -133,6 +149,7 @@ class spriteHandler:
             current_collection = spriteCollectionList[j]
             if spriteHandler.categories[current_collection]:
                 spriteHandler.outputLog.appendPlainText("Packing: " + current_collection)
+                spriteHandler.outputLog.repaint()
                 maxW = 0
                 maxH = 0
                 # print("SPRITE COLLECTION: ", spriteHandler.spriteCollection)
@@ -175,7 +192,7 @@ class spriteHandler:
                 
                 if not (maxH > 1 and maxW > 1):
                     spriteHandler.outputLog.appendPlainText("(Skip) Size Error - " + current_collection)
-                    current_collection
+                    spriteHandler.outputLog.repaint()
                 else:
                     maxW = 2 ** math.ceil(math.log2(maxW - 1))
                     maxH = 2 ** math.ceil(math.log2(maxH - 1))
@@ -186,6 +203,7 @@ class spriteHandler:
                     
                     if atlas_base_load["img"] is None:
                         spriteHandler.outputLog.appendPlainText("(Skip) No Base Atlas - " + current_collection)
+                        spriteHandler.outputLog.repaint()
                     else:
                         out.paste(atlas_base_load["img"])
 
@@ -199,6 +217,7 @@ class spriteHandler:
                                         spriteHandler.outputLog.appendPlainText("(Skip) Missing - " + spriteHandler.spritePath[i])
                                     case _:
                                         spriteHandler.outputLog.appendPlainText("(Skip) Error - " + spriteHandler.spritePath[i])
+                                spriteHandler.outputLog.repaint()
                                 continue;
                             im = img_load["img"]
                             im = im.crop(
@@ -251,6 +270,7 @@ class spriteHandler:
             return { "img": None, "err": "Unknown" }
     
     
+    
     @staticmethod
     def getBaseAtlasPath(collection):
         if collection in spriteHandler.spriteAtlases:
@@ -263,10 +283,17 @@ class spriteHandler:
     def loadDuplicates(animation):
         spriteHandler.duplicatesHashList = []
         spriteHandler.duplicatesList = []
-        filePath = os.path.abspath(
-            os.path.join(os.path.dirname(__file__), "resources/duplicatedata.json")
-        )
-        duplicatesDict = json.load(open(filePath, "r"))
+        
+        # Old, Hard Coded Duplicate List
+        
+        #filePath = os.path.abspath(
+        #    os.path.join(os.path.dirname(__file__), "resources/duplicatedata.json")
+        #)
+        #duplicatesDict = json.load(open(filePath, "r"))
+        
+        # New, Dynamically Generated Duplicate List
+        duplicatesDict = spriteHandler.duplicatesCache
+        
         keyList = list(duplicatesDict.keys())
         valueList = list(duplicatesDict.values())
         for path in spriteHandler.spritePath:
@@ -300,30 +327,44 @@ class spriteHandler:
         # print(groupOfDuplicates)
         groupOfDuplicates.remove(main)
         mainIndex = spriteHandler.spritePath.index(main)
-        mainImage = Image.open(spriteHandler.basepath + "/" + main)
-        mainImage = mainImage.crop(
+        
+        # Abort when main copy is missing
+        main_img_path = spriteHandler.basepath + "/" + main
+        main_img_path = spriteHandler.attemptToLoadImageFile(main_img_path)
+        if main_img_path["err"] != "":
+            return
+        main_img = main_img_path["img"]
+        
+        main_img = main_img.crop(
             (
                 spriteHandler.spriteXR[mainIndex],
-                mainImage.size[1]
+                main_img.size[1]
                 - spriteHandler.spriteYR[mainIndex]
                 - spriteHandler.spriteH[mainIndex],
                 spriteHandler.spriteXR[mainIndex] + spriteHandler.spriteW[mainIndex],
-                mainImage.size[1] - spriteHandler.spriteYR[mainIndex],
+                main_img.size[1] - spriteHandler.spriteYR[mainIndex],
             )
         )
         for image in groupOfDuplicates:
             duplicateIndex = spriteHandler.spritePath.index(image)
-            duplicateImage = Image.open(spriteHandler.basepath + "/" + image)
-            duplicateImage.paste(
-                mainImage,
+            
+            # Skip missing files
+            dup_img_path = spriteHandler.basepath + "/" + image
+            dup_img_load = spriteHandler.attemptToLoadImageFile(dup_img_path)
+            if dup_img_load["err"] != "":
+                continue
+            dup_img = dup_img_load["img"]
+            
+            dup_img.paste(
+                main_img,
                 (
                     spriteHandler.spriteXR[duplicateIndex],
-                    duplicateImage.size[1]
+                    dup_img.size[1]
                     - spriteHandler.spriteYR[duplicateIndex]
                     - spriteHandler.spriteH[duplicateIndex],
                 ),
             )
-            duplicateImage.save(spriteHandler.basepath + "/" + image)
+            dup_img.save(dup_img_path)
 
 
 
@@ -334,9 +375,11 @@ class spriteHandler:
         def sortFunc(file):
             if file in spriteHandler.spritePath:
                 i = spriteHandler.spritePath.index(file)
-                im = Image.open(
-                    spriteHandler.basepath + "/" + spriteHandler.spritePath[i]
-                )
+                img_path = spriteHandler.basepath + "/" + spriteHandler.spritePath[i]
+                img_load = spriteHandler.attemptToLoadImageFile(img_path)
+                if img_load["err"] != "":
+                    return 3
+                im = img_load["img"]
                 im = im.crop(
                     (
                         spriteHandler.spriteXR[i],
@@ -373,7 +416,13 @@ class spriteHandler:
         customHash = ""
         for sprite in duplicates:
             i = spriteHandler.spritePath.index(sprite)
-            im = Image.open(spriteHandler.basepath + "/" + spriteHandler.spritePath[i])
+            
+            img_path = spriteHandler.basepath + "/" + spriteHandler.spritePath[i]
+            img_load = spriteHandler.attemptToLoadImageFile(img_path)
+            if img_load["err"] != "":
+                continue
+            im = img_load["img"]
+            
             im = im.crop(
                 (
                     spriteHandler.spriteXR[i],
