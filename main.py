@@ -160,14 +160,14 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 currentItem = item
                 index = spriteHandler.duplicatesHashList.index(currentItem)
                 sortedDuplicates = spriteHandler.sortByHash(index, currentItem)
-                if not spriteHandler.checkCompletion(sortedDuplicates, currentItem):
+                if not spriteHandler.checkCompletion(sortedDuplicates, currentItem, True):
                     completion = False
                     break
             if not completion:
                 button = QMessageBox.warning(
                     window,
-                    "Some duplicate sprites are not modified",
-                    "Some duplicate sprites are not modified:\nThis means that a group of duplicates either is all vanilla, or the non-vanilla sprites do not match. You can continue if you intentionally left duplicate sprites different / vanilla. Would you like to continue packing?",
+                    "Some duplicate sprites are not do not match",
+                    "Some duplicate sprites are not do not match:\nA group of non-vanilla duplicates do not match. You can continue if you intentionally left duplicate sprites different, but only one show up in the packed sprite sheet. Would you like to continue packing?",
                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                     defaultButton=QMessageBox.StandardButton.No,
                 )
@@ -413,40 +413,37 @@ class WizardDialog(QDialog, Ui_Dialog):
             self.listWidget.setCurrentRow(0)
 
     def updateCompletion(self):
-        greenBrush = QtGui.QBrush(
-            QtCore.Qt.GlobalColor.green, QtCore.Qt.BrushStyle.Dense4Pattern
-        )
-        redBrush = QtGui.QBrush(
-            QtCore.Qt.GlobalColor.red, QtCore.Qt.BrushStyle.Dense4Pattern
-        )
+        code_brushes = [
+            QtGui.QBrush(QtCore.Qt.GlobalColor.red, QtCore.Qt.BrushStyle.Dense4Pattern),
+            QtGui.QBrush(QtCore.Qt.GlobalColor.green, QtCore.Qt.BrushStyle.Dense4Pattern),
+            QtGui.QBrush(QtCore.Qt.GlobalColor.white, QtCore.Qt.BrushStyle.Dense4Pattern)
+        ]
+        code_icons = [
+            "resources/xicon.png",
+            "resources/checkicon.png",
+            "resources/dashicon.png"
+        ]
         for item in [
             self.duplicatesWidget.item(x) for x in range(self.duplicatesWidget.count())
         ]:
             currentItem = item.text()
             index = spriteHandler.duplicatesHashList.index(currentItem)
             sortedDuplicates = spriteHandler.sortByHash(index, currentItem)
-            if spriteHandler.checkCompletion(sortedDuplicates, currentItem):
-                item.setBackground(greenBrush)
-                item.setIcon(
-                    QtGui.QIcon(
-                        os.path.abspath(
-                            os.path.join(
-                                os.path.dirname(__file__), "resources/checkicon.png"
-                            )
+            completion_code = spriteHandler.checkCompletion(sortedDuplicates, currentItem)
+            
+            completion_code = min(max(completion_code, 0), 2)
+            
+            item.setBackground(code_brushes[completion_code])
+            item.setIcon(
+                QtGui.QIcon(
+                    os.path.abspath(
+                        os.path.join(
+                            os.path.dirname(__file__), code_icons[completion_code]
                         )
                     )
                 )
-            else:
-                item.setBackground(redBrush)
-                item.setIcon(
-                    QtGui.QIcon(
-                        os.path.abspath(
-                            os.path.join(
-                                os.path.dirname(__file__), "resources/xicon.png"
-                            )
-                        )
-                    )
-                )
+            )
+
 
 
 app = QApplication(sys.argv)

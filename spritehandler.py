@@ -16,6 +16,8 @@ class spriteHandler:
     savedOutputFolder = ""
     
     spriteAtlases = {}
+    
+    atlasImgCache = {}
 
     spriteIDs = []
     spriteX = []
@@ -31,6 +33,8 @@ class spriteHandler:
     duplicatesHashList = []
     duplicatesList = []
     duplicatesCache = {}
+    duplicatesHashCache = {}
+    duplicatesData = {}
     
     outputLog = None
 
@@ -41,6 +45,8 @@ class spriteHandler:
         categories = []
         spriteHandler.spriteAtlases = {}
         spriteHandler.duplicatesCache = {}
+        spriteHandler.duplicatesHashCache = {}
+        spriteHandler.duplicatesData = {}
         spriteHandler.dataArray = []
         for file in files:
             io = open(file, "r")
@@ -72,6 +78,14 @@ class spriteHandler:
                 sprite_key = " ".join(key_items)
                 if not (sprite_key in spriteHandler.duplicatesCache):
                     spriteHandler.duplicatesCache[sprite_key] = []
+                    spriteHandler.duplicatesData[sprite_key] = {
+                        "collection": data["scollectionname"][i],
+                        "x": data["sx"][i],
+                        "y": data["sy"][i],
+                        "width": data["swidth"][i],
+                        "height": data["sheight"][i],
+                        "flipped": data["sfilpped"][i]
+                    }
                 spriteHandler.duplicatesCache[sprite_key].append(data["spath"][i])
         
         finalCategories = []
@@ -276,9 +290,29 @@ class spriteHandler:
         if collection in spriteHandler.spriteAtlases:
             return spriteHandler.spriteAtlases[collection]
         return ""
-
-
-
+    
+    
+    
+    def getCachedAtlasImg(collection, flipped):
+        cache_name = collection
+        if flipped:
+            cache_name = cache_name + "__Flipped"
+        
+        if cache_name in spriteHandler.atlasImgCache:
+            return spriteHandler.atlasImgCache[cache_name]
+        atlas_path = spriteHandler.getBaseAtlasPath(collection)
+        atlas_load = spriteHandler.attemptToLoadImageFile(atlas_path)
+        atlas_img = atlas_load["img"]
+        
+        if flipped and not (atlas_img is None):
+            atlas_img = atlas_img.transpose(Image.FLIP_LEFT_RIGHT)
+            atlas_img = atlas_img.rotate(-90, expand=True)
+        
+        spriteHandler.atlasImgCache[cache_name] = atlas_img
+        return atlas_img
+    
+    
+    
     @staticmethod
     def loadDuplicates(animation):
         spriteHandler.duplicatesHashList = []
@@ -412,8 +446,53 @@ class spriteHandler:
 
 
     @staticmethod
-    def checkCompletion(duplicates, vanillaHash):
-        customHash = ""
+    def getVanillaHash(sprite_id):
+        if sprite_id in spriteHandler.duplicatesHashCache:
+            return spriteHandler.duplicatesHashCache[sprite_id]
+        
+        collection = spriteHandler.duplicatesData[sprite_id]["collection"]
+        atlas_data = spriteHandler.duplicatesData[sprite_id]
+        atlas_img = spriteHandler.getCachedAtlasImg(collection, atlas_data["flipped"])
+        if atlas_img is None:
+            return ""
+            
+        box_x = atlas_data["x"]
+        box_y = atlas_data["y"]
+        box_width = atlas_data["width"]
+        box_height = atlas_data["height"]
+        
+        if atlas_data["flipped"]:
+            (box_x, box_y) = (box_y, box_x)
+            
+        box = (
+            box_x,
+            atlas_img.height - box_y - box_height,
+            box_x + box_width,
+            atlas_img.height - box_y
+        )
+            
+        croped_img = atlas_img.crop(box)
+        img_data = croped_img.getdata()
+        vanilla_hash = str(hash(tuple(map(tuple, img_data))))
+        spriteHandler.duplicatesHashCache[sprite_id] = vanilla_hash
+        
+        debug_name = "_".join([
+                str(atlas_data["collection"]),
+                str(atlas_data["x"]),
+                str(atlas_data["y"]),
+                str(atlas_data["width"]),
+                str(atlas_data["height"])
+            ])
+        # croped_img.save(spriteHandler.savedOutputFolder + "/debug/" + debug_name + ".png")
+        
+        return vanilla_hash
+
+
+
+    @staticmethod
+    def checkCompletion(duplicates, sprite_id, skip_vanilla = False):
+        custom_hash = ""
+        collection = ""
         for sprite in duplicates:
             i = spriteHandler.spritePath.index(sprite)
             
@@ -436,13 +515,14 @@ class spriteHandler:
             # print(sprite)
             # print(type(newHash))
             # print(type(vanillaHash))
-            if str(newHash) == vanillaHash:
-                # print("equal")
-                return 0
-            else:
-                if customHash == "":
-                    customHash = str(newHash)
-                else:
-                    if customHash != str(newHash):
-                        return 0
-        return 1
+            if custom_hash == "":
+                custom_hash = str(newHash)
+                collection = spriteHandler.spriteCollection[i]
+                atlas_index = i
+            elif custom_hash != str(newHash):
+                return 0 # Not All Equal
+        if not skip_vanilla:
+            if collection in spriteHandler.spriteAtlases:
+                if custom_hash == spriteHandler.getVanillaHash(sprite_id):
+                    return 2 # All Vanilla
+        return 1 # All Equal
