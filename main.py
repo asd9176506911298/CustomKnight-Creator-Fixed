@@ -83,8 +83,16 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     def loadCategories(self, checked):
         files = []
+        found = []
         for i in range(self.listWidget.count()):
-            files.append(self.listWidget.item(i).text() + "/0.Atlases/SpriteInfo.json")
+            sprite_info_path = self.listWidget.item(i).text() + "/0.Atlases/SpriteInfo.json"
+            if path.isfile(sprite_info_path):
+                files.append(sprite_info_path)
+                found.append(self.listWidget.item(i).text())
+            else:
+                self.infoBox.appendPlainText("Removed Missing: " + sprite_info_path)
+        self.listWidget.clear()
+        self.listWidget.addItems(found)
         # print(files)
         categories = spriteHandler.loadSpriteInfo(files)
         self.listWidget_2.clear()
@@ -295,9 +303,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 # print(spriteHandler.basepath)
                 self.loadCategories(False)
                 for category in saveData["enabledCategories"]:
-                    spriteHandler.categories[category] = saveData["enabledCategories"][
-                        category
-                    ]
+                    if category in spriteHandler.categories:
+                        spriteHandler.categories[category] = saveData["enabledCategories"][category]
                 self.updateEnabled()
                 self.loadAnimations(False)
             if saveData["outputFolder"] != "":
