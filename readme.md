@@ -1,3 +1,10 @@
+# Fixed CustomKnight Creator
+
+A fork of CustomKnight Creator that aims to patch as many crashes and bugs the original project had as possible.
+Thanks to the original project and the Hollow Knight modding community.
+
+Original Readme:
+-----
 # CustomKnight Creator
 
 ![Example Image](docs/readme_example.png)
