@@ -28,7 +28,7 @@ Visit the [wiki](https://github.com/cmot17/CustomKnight-Creator/wiki) for a writ
 * This project is built using Python 3.10.
 * To run the project, just download the source code, install the dependencies (preferably in a [virtual environment](https://docs.python.org/3/tutorial/venv.html)) and run main.py.
     * PyQt6: `python -m pip install PyQt6`
-    * Pillow: `pythom -m pip install Pillow`
+    * Pillow: `python -m pip install Pillow`
 
 ## Packaging
 
@@ -41,6 +41,8 @@ pyinstaller main.py -F -w -n "CustomKnight Creator" -i resources/SheoIcon.icns -
 ### Windows:
 ```
 pyinstaller main.py -F -w -n "CustomKnight Creator" -i resources/SheoIcon.ico --add-data "resources;resources"
+or 
+Pyinstaller '.\CustomKnight Creator.spec'
 ```
 ### Linux:
 ```
