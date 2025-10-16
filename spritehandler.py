@@ -1,3 +1,4 @@
+from enum import Enum
 import json
 import math
 from PIL import Image
@@ -6,7 +7,12 @@ import os.path
 from PyQt6.QtWidgets import *
 import copy
 
-
+class SpritePackingRotation(Enum):
+    NONE = 0
+    FLIP_HORIZONTAL = 1
+    FLIP_VERTICAL = 2
+    ROTATE_180 = 3
+    ROTATE_90 = 4
 
 class spriteHandler:
     dataArray = []
@@ -29,6 +35,8 @@ class spriteHandler:
     spriteFlipped = []
     spritePath = []
     spriteCollection = []
+    spriteRotate = []
+    spritePathPoints = []
 
     duplicatesHashList = []
     duplicatesList = []
@@ -112,6 +120,8 @@ class spriteHandler:
         spriteHandler.spriteFlipped = []
         spriteHandler.spritePath = []
         spriteHandler.spriteCollection = []
+        spriteHandler.spriteRotate = []
+        spriteHandler.spritePathPoints = []
         for data in spriteHandler.dataArray:
             spriteHandler.spriteIDs += data["sid"]
             spriteHandler.spriteX += data["sx"]
@@ -123,6 +133,12 @@ class spriteHandler:
             spriteHandler.spriteFlipped += data["sfilpped"]
             spriteHandler.spritePath += data["spath"]
             spriteHandler.spriteCollection += data["scollectionname"]
+            
+            if data.get("srotate") is not None and data.get("srotate") != "":
+                spriteHandler.spriteRotate += data["srotate"]
+            if data.get("spathPoints") is not None and data.get("spathPoints") != "":
+                spriteHandler.spritePathPoints += data["spathPoints"]
+                
         for i in reversed(range(0, len(spriteHandler.spriteCollection))):
             if (not spriteHandler.categories[spriteHandler.spriteCollection[i]]) or (
                 str.casefold(filter) not in str.casefold(spriteHandler.spritePath[i])
@@ -137,6 +153,11 @@ class spriteHandler:
                 del spriteHandler.spriteFlipped[i]
                 del spriteHandler.spritePath[i]
                 del spriteHandler.spriteCollection[i]
+
+                if i < len(spriteHandler.spriteRotate):
+                    del spriteHandler.spriteRotate[i]
+                if i < len(spriteHandler.spritePathPoints):
+                    del spriteHandler.spritePathPoints[i]
         animations = []
         for path in spriteHandler.spritePath:
             if os.path.basename(os.path.dirname(path)) not in animations:
@@ -244,13 +265,29 @@ class spriteHandler:
                                     im.size[1] - spriteHandler.spriteYR[i],
                                 )
                             )
-                            if spriteHandler.spriteFlipped[i] == True:
-                                x = spriteHandler.spriteX[i]
-                                y = (
-                                    out.size[1]
-                                    - spriteHandler.spriteY[i]
-                                    - spriteHandler.spriteW[i]
-                                )
+
+                            # TK2D
+                            if spriteHandler.spriteRotate == []:
+                                if spriteHandler.spriteFlipped[i] == True:
+                                    x = spriteHandler.spriteX[i]
+                                    y = (
+                                        out.size[1]
+                                        - spriteHandler.spriteY[i]
+                                        - spriteHandler.spriteW[i]
+                                    )
+                                else:
+                                    x = spriteHandler.spriteX[i]
+                                    y = (
+                                        out.size[1]
+                                        - spriteHandler.spriteY[i]
+                                        - spriteHandler.spriteH[i]
+                                    )
+
+                                if spriteHandler.spriteFlipped[i]:
+                                    im = im.rotate(90, expand=True)
+                                    im = im.transpose(Image.FLIP_LEFT_RIGHT)
+
+                                # Texture2D
                             else:
                                 x = spriteHandler.spriteX[i]
                                 y = (
@@ -259,11 +296,134 @@ class spriteHandler:
                                     - spriteHandler.spriteH[i]
                                 )
 
-                            if spriteHandler.spriteFlipped[i]:
-                                im = im.rotate(90, expand=True)
-                                im = im.transpose(Image.FLIP_LEFT_RIGHT)
+                                packing_rotation = spriteHandler.spriteRotate[i]
+                                match packing_rotation:
+                                    case SpritePackingRotation.FLIP_HORIZONTAL.value:
+                                        im = im.transpose(Image.FLIP_LEFT_RIGHT) 
+                                    case SpritePackingRotation.FLIP_VERTICAL.value:
+                                        im = im.transpose(Image.FLIP_TOP_BOTTOM) 
+                                    case SpritePackingRotation.ROTATE_180.value:
+                                        im = im.rotate(180, expand=True)
+                                    case SpritePackingRotation.ROTATE_90.value:
+                                        im = im.rotate(90, expand=True)
+                        
 
-                            out.paste(im, (x, y))
+                                # # out.paste(im, (x, y))
+                                # # 逐像素檢查並貼上非透明像素
+                                # for px in range(im.size[0]):
+                                #     for py in range(im.size[1]):
+                                #         pixel = im.getpixel((px, py))
+                                #         if len(pixel) == 4 and pixel[3] > 0:  # 檢查 alpha 通道
+                                #             out_x = x + px
+                                #             out_y = y + py
+                                #             if 0 <= out_x < out.size[0] and 0 <= out_y < out.size[1]:
+                                #                 out.putpixel((out_x, out_y), pixel)
+
+                                # out.paste(im, (x, y))
+
+                                # ========== 使用 spritePathPoints 精確貼上（透明修正版） ==========
+                                if hasattr(spriteHandler, 'spritePathPoints') and spriteHandler.spritePathPoints:
+                                    points_str = spriteHandler.spritePathPoints[i]
+                                    
+                                    # 1. 解析座標列表
+                                    import ast
+                                    try:
+                                        points = ast.literal_eval(points_str)
+                                    except:
+                                        import json
+                                        points = json.loads(points_str)
+                                    
+                                    # print(f"解析點數: {len(points)} 個")
+                                    
+                                    # 2. 取得精靈尺寸
+                                    sprite_w, sprite_h = im.size
+                                    # print(f"精靈尺寸: {sprite_w}x{sprite_h}")
+                                    
+                                    # 3. 計算邊界
+                                    rel_xs = [p[0] for p in points]
+                                    rel_ys = [p[1] for p in points]
+                                    min_x, max_x = min(rel_xs), max(rel_xs)
+                                    min_y, max_y = min(rel_ys), max(rel_ys)
+                                    range_x = max_x - min_x
+                                    range_y = max_y - min_y
+                                    # print(f"相對範圍: X[{min_x:.3f}~{max_x:.3f}], Y[{min_y:.3f}~{max_y:.3f}]")
+                                    
+                                    if range_x == 0 or range_y == 0:
+                                        print("警告: 範圍為0，使用舊版貼上")
+                                        x = spriteHandler.spriteX[i]
+                                        y = spriteHandler.spriteY[i]  # 修正為從頂部計算
+                                        out.paste(im, (x, y))
+                                    else:
+                                        # 4. 建立遮罩（L模式，黑=透明）
+                                        from PIL import ImageDraw
+                                        mask = Image.new('L', (sprite_w, sprite_h), 0)  # 0=透明
+                                        draw = ImageDraw.Draw(mask)
+                                        
+                                        # 5. 逐三角形繪製
+                                        for tri_idx in range(0, len(points), 3):
+                                            tri_points = points[tri_idx:tri_idx+3]
+                                            if len(tri_points) < 3: continue
+                                            
+                                            # 本地像素座標（Y翻轉）
+                                            pixel_points = [
+                                                (
+                                                    int((rel_x - min_x) / range_x * sprite_w),
+                                                    int((max_y - rel_y) / range_y * sprite_h)
+                                                )
+                                                for rel_x, rel_y in tri_points
+                                            ]
+                                            draw.polygon(pixel_points, fill=255)  # 255=不透明
+                                        
+                                        # 6. 確保 im 是 RGBA
+                                        if im.mode != 'RGBA':
+                                            im = im.convert('RGBA')
+                                        
+                                        # 7. 貼上位置（修正為從頂部計算）
+                                        x = spriteHandler.spriteX[i]
+                                        y = out.size[1] - spriteHandler.spriteY[i] - sprite_h  # ✅ 從底部！
+                                        
+                                        # 8. 邊界檢查
+                                        x = max(0, min(x, out.size[0] - sprite_w))
+                                        y = max(0, min(y, out.size[1] - sprite_h))
+                                        
+                                        packing_rotation = spriteHandler.spriteRotate[i]
+                                        match packing_rotation:
+                                            case SpritePackingRotation.FLIP_HORIZONTAL.value: # 應該是修好了
+                                                im = im.transpose(Image.FLIP_TOP_BOTTOM)
+                                                mask = mask.transpose(Image.FLIP_LEFT_RIGHT)
+                                            case SpritePackingRotation.FLIP_VERTICAL.value: # 修好
+                                                im = im.transpose(Image.FLIP_TOP_BOTTOM)
+                                                mask = mask.transpose(Image.FLIP_TOP_BOTTOM)
+                                            case SpritePackingRotation.ROTATE_180.value: # 修好
+                                                im = im.transpose(Image.FLIP_TOP_BOTTOM)
+                                                mask = mask.transpose(Image.FLIP_LEFT_RIGHT)
+                                                mask = mask.transpose(Image.FLIP_TOP_BOTTOM)
+                                            case SpritePackingRotation.NONE.value: # 修好
+                                                im = im.transpose(Image.FLIP_TOP_BOTTOM)
+
+                                            # ROTATE_90 沒遇到
+                                    
+                                        # 上下翻轉
+                                        im = im.transpose(Image.FLIP_TOP_BOTTOM) 
+                                        # 9. ✅ 正確貼上：用 mask 而非 im！
+                                        out.paste(im, (x, y), mask)
+                                        
+                                        # 10. 除錯：顯示遮罩像素數
+                                        white_pixels = sum(1 for pixel in mask.getdata() if pixel > 0)
+                                        # print(f"遮罩有效像素: {white_pixels}/{sprite_w*sprite_h} ({white_pixels/(sprite_w*sprite_h)*100:.1f}%)")
+                                        
+                                        # 11. 日誌
+                                        # spriteHandler.outputLog.appendPlainText(
+                                        #     f"✓ 透明遮罩: {spriteHandler.spriteIDs[i]} "
+                                        #     f"[{x},{y}] ({white_pixels}像素)"
+                                        # )
+                                        
+                                        
+                                else:  # 舊版
+                                    x = spriteHandler.spriteX[i]
+                                    y = spriteHandler.spriteY[i]  # 修正為從頂部計算
+                                    out.paste(im, (x, y))
+                                
                     try:
                         out.save(outputDir + "/" + spriteCollectionList[j] + ".png")
                     except OSError:
