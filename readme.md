@@ -41,7 +41,9 @@ pyinstaller main.py -F -w -n "CustomKnight Creator" -i resources/SheoIcon.icns -
 ### Windows:
 ```
 pyinstaller main.py -F -w -n "CustomKnight Creator" -i resources/SheoIcon.ico --add-data "resources;resources"
-or 
+```
+or
+```
 Pyinstaller '.\CustomKnight Creator.spec'
 ```
 ### Linux:
