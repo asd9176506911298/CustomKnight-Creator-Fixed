@@ -340,8 +340,25 @@ class spriteHandler:
                                     # print(f"精靈尺寸: {sprite_w}x{sprite_h}")
                                     
                                     # 3. 計算邊界
+                                    if not points:
+                                        # 點列表為空 → 退回傳統貼圖方式
+                                        spriteHandler.outputLog.appendPlainText(f"(Fallback) Empty points for {spriteHandler.spriteIDs[i]}")
+                                        x = spriteHandler.spriteX[i]
+                                        y = out.size[1] - spriteHandler.spriteY[i] - im.size[1]
+                                        out.paste(im, (x, y))
+                                        continue  # 跳過後續遮罩邏輯
+
                                     rel_xs = [p[0] for p in points]
                                     rel_ys = [p[1] for p in points]
+
+                                    if not rel_xs or not rel_ys:
+                                        # 極端情況：points 存在但無 x/y 座標
+                                        spriteHandler.outputLog.appendPlainText(f"(Fallback) Invalid points data for {spriteHandler.spriteIDs[i]}")
+                                        x = spriteHandler.spriteX[i]
+                                        y = out.size[1] - spriteHandler.spriteY[i] - im.size[1]
+                                        out.paste(im, (x, y))
+                                        continue
+
                                     min_x, max_x = min(rel_xs), max(rel_xs)
                                     min_y, max_y = min(rel_ys), max(rel_ys)
                                     range_x = max_x - min_x
