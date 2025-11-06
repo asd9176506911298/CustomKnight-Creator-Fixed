@@ -34,6 +34,11 @@ Visit the [wiki](https://github.com/cmot17/CustomKnight-Creator/wiki) for a writ
 
 To package the project, use the following [PyInstaller](https://github.com/pyinstaller/pyinstaller) commands: (they are platform specific)
 
+packing error
+```
+pip install --upgrade pyinstaller
+```
+
 ### MacOS:
 ```
 pyinstaller main.py -F -w -n "CustomKnight Creator" -i resources/SheoIcon.icns --add-data resources:resources
